@@ -12,10 +12,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [macos-15]
+        xcode-version: [16.0]
+        release: [2021, 2024]
+        ios-version: ["18.0"]
         include:
-          - os: macos-13
-            xcode-version: "15.1"   # Swift 5.9.2
+          - ios-version: "18.0"
+            ios-simulator-name: "iPhone 16 Pro"
     runs-on: ${{ matrix.os }}
+    env:
+      OPENSWIFTUI_WERROR: 1
+      OPENGRAPH_ATTRIBUTEGRAPH: 1
+      OPENSWIFTUI_COMPATIBILITY_TEST: 0
+      OPENSWIFTUI_SWIFT_LOG: 0
+      OPENSWIFTUI_SWIFT_CRYPTO: 0
+      OPENSWIFTUI_TARGET_RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Xcode
@@ -24,20 +35,19 @@ jobs:
           xcode-version: ${{ matrix.xcode-version }}
       - name: Swift version
         run: swift --version
-      - name: Build in release mode
+      - name: Build test target in debug mode
         run: |
           xcodebuild build \
             -scheme OpenSwiftUI \
             -configuration Debug \
-            -skipMacroValidation -skipPackagePluginValidation \
-            -destination "platform=iOS-Simulator" \
-            # OpenSwiftUI-Package is not listed currently
-            # OTHER_SWIFT_FLAGS="-warnings-as-errors" \ AccessLevelOnImport will cause build warning via xcodebuild
-      - name: Build and run tests in debug mode
+            -destination "platform=iOS Simulator,OS=${{ matrix.ios-version }},name=${{ matrix.ios-simulator-name }}" \
+            -skipMacroValidation \
+            -skipPackagePluginValidation
+      - name: Run test target in debug mode
         run: |
           xcodebuild test \
             -scheme OpenSwiftUI \
             -configuration Debug \
-            -skipMacroValidation -skipPackagePluginValidation \
-            -destination "platform=iOS-Simulator" \
-            # OTHER_SWIFT_FLAGS="-warnings-as-errors"
+            -destination "platform=iOS Simulator,OS=${{ matrix.ios-version }},name=${{ matrix.ios-simulator-name }}" \
+            -skipMacroValidation \
+            -skipPackagePluginValidation

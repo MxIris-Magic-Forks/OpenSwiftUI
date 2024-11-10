@@ -2,8 +2,7 @@
 //  AccessibilityNumber.swift
 //  OpenSwiftUI
 //
-//  Created by Kyle on 2023/12/3.
-//  Lastest Version: iOS 15.5
+//  Audited for iOS 15.5
 //  Status: Complete
 
 import Foundation

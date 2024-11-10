@@ -1,0 +1,3 @@
+import OpenGraphShims
+
+extension Graph {}

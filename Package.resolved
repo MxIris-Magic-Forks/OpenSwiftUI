@@ -1,41 +1,24 @@
 {
+  "originHash" : "6ae2798ced7417c65233e0130814db449aa933d9f98ec74d935b06b494949ef9",
   "pins" : [
-    {
-      "identity" : "openfoundation",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/OpenSwiftUIProject/OpenFoundation",
-      "state" : {
-        "revision" : "cd2cdb300d53e3e68fda8b690a703a7c5096d9d0",
-        "version" : "0.0.2"
-      }
-    },
     {
       "identity" : "opengraph",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/OpenSwiftUIProject/OpenGraph",
       "state" : {
         "branch" : "main",
-        "revision" : "17b4ef3ead4c0c1bce51c965d6a1169f4e65c61d"
+        "revision" : "93e713f1357fc04ca917635d09460dbf42b663b6"
       }
     },
     {
-      "identity" : "swift-syntax",
+      "identity" : "swift-numerics",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-syntax.git",
+      "location" : "https://github.com/apple/swift-numerics",
       "state" : {
-        "revision" : "6ad4ea24b01559dde0773e3d091f1b9e36175036",
-        "version" : "509.0.2"
-      }
-    },
-    {
-      "identity" : "swift-testing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-testing",
-      "state" : {
-        "revision" : "126e4be6857bda76aab3f45282bc6cfff5ac876a",
-        "version" : "0.3.0"
+        "revision" : "0a5bc04095a675662cf24757cc0640aa2204253b",
+        "version" : "1.0.2"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

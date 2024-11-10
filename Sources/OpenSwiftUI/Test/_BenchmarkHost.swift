@@ -2,22 +2,17 @@
 //  _BenchmarkHost.swift
 //  OpenSwiftUI
 //
-//  Created by Kyle on 2023/1/9.
-//  Lastest Version: iOS 15.5
+//  Audited for iOS 15.5
 //  Status: Complete
 //  ID: 3E629D505F0A70F29ACFC010AA42C6E0
 
-#if canImport(Darwin)
-import CoreGraphics
-#elseif os(Linux)
-import Foundation
-#endif
+public import Foundation
 
 #if canImport(QuartzCore)
 import QuartzCore
 #endif
 
-private let enableProfiler = EnvironmentHelper.value(for: "OPENSWIFTUI_PROFILE_BENCHMARKS")
+private let enableProfiler = EnvironmentHelper.bool(for: "OPENSWIFTUI_PROFILE_BENCHMARKS")
 
 public protocol _BenchmarkHost: AnyObject {
     func _renderForTest(interval: Double)

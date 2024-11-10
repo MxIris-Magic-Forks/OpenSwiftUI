@@ -12,8 +12,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        swift_version: ["5.9.2"]
+        swift_version: ["6.0.1"]
     runs-on: ubuntu-22.04
+    env:
+      OPENSWIFTUI_WERROR: 1
+      OPENGRAPH_ATTRIBUTEGRAPH: 0
+      OPENSWIFTUI_COMPATIBILITY_TEST: 0
+      OPENSWIFTUI_SWIFT_LOG: 1
+      OPENSWIFTUI_SWIFT_CRYPTO: 1
     container: swift:${{ matrix.swift_version }}-jammy
     steps:
       - uses: actions/checkout@v4
@@ -22,20 +28,22 @@ jobs:
           swift test \
             -c debug \
             --filter OpenSwiftUITests \
-            -Xswiftc -warnings-as-errors \
+            --filter OpenSwiftUICoreTests \
             --enable-code-coverage \
             --build-path .build-test-debug
           llvm-cov show \
             -instr-profile=.build-test-debug/debug/codecov/default.profdata \
             .build-test-debug/debug/OpenSwiftUIPackageTests.xctest \
             > coverage.txt
+        id: debug-test
       - name: Building and running tests in release mode
         run: |
           swift test \
             -c release \
             --filter OpenSwiftUITests \
-            -Xswiftc -warnings-as-errors \
+            --filter OpenSwiftUICoreTests \
             --build-path .build-test-release
+        id: release-test
       - uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

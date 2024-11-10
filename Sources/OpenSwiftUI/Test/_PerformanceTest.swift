@@ -2,8 +2,7 @@
 //  _PerformanceTest.swift
 //  OpenSwiftUI
 //
-//  Created by Kyle on 2023/1/9.
-//  Lastest Version: iOS 15.5
+//  Audited for iOS 15.5
 //  Status: WIP
 
 #if os(iOS)
@@ -12,7 +11,7 @@ import UIKit
 import AppKit
 #endif
 
-internal import OpenSwiftUIShims
+import OpenSwiftUI_SPI
 
 public protocol _PerformanceTest: _Test {
     var name: String { get }
@@ -35,24 +34,30 @@ extension _BenchmarkHost {
     public func _started(test: _PerformanceTest) {
         #if os(iOS)
         UIApplication.shared.startedTest(test.name)
+        #elseif os(macOS)
+        NSApplication.shared.startedTest(test.name)
         #else
-        fatalError("TODO")
+        fatalError("Unimplemented for other platform")
         #endif
     }
 
     public func _finished(test: _PerformanceTest) {
         #if os(iOS)
         UIApplication.shared.finishedTest(test.name)
+        #elseif os(macOS)
+        NSApplication.shared.finishedTest(test.name)
         #else
-        fatalError("TODO")
+        fatalError("Unimplemented for other platform")
         #endif
     }
 
     public func _failed(test: _PerformanceTest) {
         #if os(iOS)
         UIApplication.shared.failedTest(test.name, withFailure: nil)
+        #elseif os(macOS)
+        NSApplication.shared.failedTest(test.name, withFailure: nil)
         #else
-        fatalError("TODO")
+        fatalError("Unimplemented for other platform")
         #endif
     }
 }

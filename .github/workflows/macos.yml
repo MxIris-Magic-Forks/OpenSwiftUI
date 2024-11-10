@@ -12,10 +12,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-13
-            xcode-version: "15.1"   # Swift 5.9.2
+        os: [macos-15]
+        xcode-version: [16.0]
+        release: [2021, 2024]
     runs-on: ${{ matrix.os }}
+    env:
+      OPENSWIFTUI_WERROR: 1
+      OPENGRAPH_ATTRIBUTEGRAPH: 1
+      OPENSWIFTUI_COMPATIBILITY_TEST: 0
+      OPENSWIFTUI_SWIFT_LOG: 0
+      OPENSWIFTUI_SWIFT_CRYPTO: 0
+      OPENSWIFTUI_TARGET_RELEASE: ${{ matrix.release }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Xcode
@@ -29,7 +36,7 @@ jobs:
           swift test \
             -c debug \
             --filter OpenSwiftUITests \
-            -Xswiftc -warnings-as-errors \
+            --filter OpenSwiftUICoreTests \
             --enable-code-coverage \
             --build-path .build-test-debug
           xcrun llvm-cov show \
@@ -41,7 +48,7 @@ jobs:
           swift test \
             -c release \
             --filter OpenSwiftUITests \
-            -Xswiftc -warnings-as-errors \
+            --filter OpenSwiftUICoreTests \
             --enable-code-coverage \
             --build-path .build-test-release
       - uses: codecov/codecov-action@v3
