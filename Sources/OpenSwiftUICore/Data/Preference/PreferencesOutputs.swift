@@ -1,113 +1,93 @@
 //
 //  PreferencesOutputs.swift
-//  OpenSwiftUI
+//  OpenSwiftUICore
 //
-//  Audited for iOS 15.5
+//  Audited for iOS 18.0
 //  Status: Complete
-//  ID: A948213B3F0A65E8491149A582CA5C71
 
-import OpenGraphShims
+package import OpenGraphShims
 
-struct PreferencesOutputs {
-    private var preferences: [KeyValue] = []
-    private var debugProperties: _ViewDebug.Properties = []
-
-    func contains<Key: PreferenceKey>(_: Key.Type) -> Bool {
-        contains(_AnyPreferenceKey<Key>.self)
+package struct PreferencesOutputs {
+    private var preferences: [KeyValue]
+    package var debugProperties: _ViewDebug.Properties
+    
+    @inlinable
+    package init() {
+        preferences = []
+        debugProperties = []
     }
-
-    func contains(_ key: AnyPreferenceKey.Type) -> Bool {
-        preferences.contains { $0.key == key }
-    }
-
-    #if canImport(Darwin) // FIXME: See #39
-    subscript<Key: PreferenceKey>(_: Key.Type) -> Attribute<Key.Value>? {
-        get {
-            let value = self[anyKey: _AnyPreferenceKey<Key>.self]
-            return value.map { Attribute(identifier: $0) }
-        }
+    
+    subscript(anyKey key: AnyPreferenceKey.Type) -> AnyAttribute? {
+        get { preferences.first { $0.key == key }?.value }
         set {
-            self[anyKey: _AnyPreferenceKey<Key>.self] = newValue?.identifier
-        }
-    }
-
-    subscript(anyKey keyType: AnyPreferenceKey.Type) -> AnyAttribute? {
-        get { preferences.first { $0.key == keyType }?.value }
-        set {
-            if keyType == _AnyPreferenceKey<DisplayList.Key>.self {
+            if key == _AnyPreferenceKey<DisplayList.Key>.self {
                 if !debugProperties.contains(.displayList) {
                     debugProperties.formUnion(.displayList)
                 }
             }
-            if let index = preferences.firstIndex(where: { $0.key == keyType }) {
+            if let index = preferences.firstIndex(where: { $0.key == key }) {
                 if let newValue {
                     preferences[index].value = newValue
                 } else {
                     preferences.remove(at: index)
                 }
             } else {
-                if let newValue {
-                    preferences.append(KeyValue(key: keyType, value: newValue))
+                newValue.map {
+                    preferences.append(KeyValue(key: key, value: $0))
                 }
             }
         }
     }
 
-    @inline(__always)
-    func forEach(body: (
-        _ key: AnyPreferenceKey.Type,
-        _ value: AnyAttribute
-    ) throws -> Void
-    ) rethrows {
-        try preferences.forEach { try body($0.key, $0.value) }
+    subscript<K>(key: K.Type) -> Attribute<K.Value>? where K: PreferenceKey {
+        get {
+            let value = self[anyKey: _AnyPreferenceKey<K>.self]
+            return value.map { Attribute(identifier: $0) }
+        }
+        set {
+            self[anyKey: _AnyPreferenceKey<K>.self] = newValue.map { $0.identifier }
+        }
     }
     
-    @inline(__always)
-    func first(where predicate: (
-        _ key: AnyPreferenceKey.Type,
-        _ value: AnyAttribute
-    ) throws -> Bool
-    ) rethrows -> (key: AnyPreferenceKey.Type, value: AnyAttribute)? {
-        try preferences
-            .first { try predicate($0.key, $0.value) }
-            .map { ($0.key, $0.value) }
+    package mutating func appendPreference<K>(key: K.Type, value: Attribute<K.Value>) where K: PreferenceKey{
+        preferences.append(KeyValue(key: _AnyPreferenceKey<K>.self, value: value.identifier))
+    }
+
+    package func forEachPreference(_ body: (any AnyPreferenceKey.Type, AnyAttribute) -> Void) {
+        preferences.forEach { body($0.key, $0.value) }
+    }
+
+    package func setIndirectDependency(_ dependency: AnyAttribute?) {
+        preferences.forEach {
+            $0.value.indirectDependency = dependency
+        }
+    }
+
+    package func attachIndirectOutputs(to childOutputs: PreferencesOutputs) {
+        for preference in preferences {
+            for childPreference in childOutputs.preferences where childPreference.key == preference.key {
+                preference.value.source = childPreference.value
+            }
+        }
     }
     
-    #else
-    subscript<Key: PreferenceKey>(_: Key.Type) -> Attribute<Key.Value>? {
-        get { fatalError("See #39") }
-        set { fatalError("See #39") }
-    }
-    #endif
-    
-    mutating func appendPreference<Key: PreferenceKey>(key: Key.Type, value: Attribute<Key.Value>) {
-        #if canImport(Darwin)
-        preferences.append(KeyValue(key: _AnyPreferenceKey<Key>.self, value: value.identifier))
-        #endif
+    package func detachIndirectOutputs() {
+        struct ResetPreference: PreferenceKeyVisitor {
+            var destination: AnyAttribute
+            func visit<K>(key: K.Type) where K: PreferenceKey {
+                destination.source = .nil
+            }
+        }
+        for keyValue in preferences {
+            var visitor = ResetPreference(destination: keyValue.value)
+            keyValue.key.visitKey(&visitor)
+        }
     }
 }
 
 extension PreferencesOutputs {
     private struct KeyValue {
-        var key: AnyPreferenceKey.Type
-        #if canImport(Darwin) // FIXME: See #39
+        var key: any AnyPreferenceKey.Type
         var value: AnyAttribute
-        #endif
-    }
-}
-
-extension _ViewOutputs {
-    @inline(__always)
-    var hostPreferences: Attribute<PreferenceList>? {
-        get { self[HostPreferencesKey.self] }
-        set { self[HostPreferencesKey.self] = newValue }
-    }
-}
-
-extension PreferencesOutputs {
-    @inline(__always)
-    var hostPreferences: Attribute<PreferenceList>? {
-        get { self[HostPreferencesKey.self] }
-        set { self[HostPreferencesKey.self] = newValue }
     }
 }

@@ -4,7 +4,7 @@
 //
 //  Audited for iOS 18.0
 //  Status: WIP
-//  ID: 9FF97745734808976F608CE0DC13C39C
+//  ID: 9FF97745734808976F608CE0DC13C39C (SwiftUICore)
 
 package import OpenGraphShims
 
@@ -23,7 +23,7 @@ extension GraphInput {
     }
     
     package static func makeReusable(indirectMap: IndirectAttributeMap, value: inout Value) {
-        fatalError("Reusable graph inputs must implement all reuse methods.")
+        preconditionFailure("Reusable graph inputs must implement all reuse methods.")
     }
   
     @inlinable
@@ -72,9 +72,7 @@ public struct _GraphInputs {
     package var transaction: Attribute<Transaction>
     package var changedDebugProperties: _ViewDebug.Properties
     package var options: _GraphInputs.Options
-    #if canImport(Darwin)
     package var mergedInputs: Set<AnyAttribute>
-    #endif
     
     package init(
         time: Attribute<Time>,
@@ -89,23 +87,16 @@ public struct _GraphInputs {
         self.transaction = transaction
         self.changedDebugProperties = .all
         self.options = []
-        
-        #if canImport(Darwin)
         self.mergedInputs = []
-        #endif
     }
     
     package static var invalid: _GraphInputs {
-        #if canImport(Darwin)
         _GraphInputs(
-            time: Attribute(identifier: .nil),
-            phase: Attribute(identifier: .nil),
-            environment: Attribute(identifier: .nil),
-            transaction: Attribute(identifier: .nil)
+            time: Attribute(identifier: AnyAttribute.nil),
+            phase: Attribute(identifier: AnyAttribute.nil),
+            environment: Attribute(identifier: AnyAttribute.nil),
+            transaction: Attribute(identifier: AnyAttribute.nil)
         )
-        #else
-        fatalError("See #39")
-        #endif
     }
     
     package subscript<T>(input: T.Type) -> T.Value where T: GraphInput {
@@ -137,13 +128,15 @@ public struct _GraphInputs {
         get { cachedEnvironment.wrappedValue.environment }
         set {
             cachedEnvironment.wrappedValue = CachedEnvironment(newValue)
-            changedDebugProperties.insert(.environment)
+            if !changedDebugProperties.contains(.environment) {
+                changedDebugProperties.formUnion(.environment)
+            }
         }
     }
     
     package var animationsDisabled: Bool {
         get { options.contains(.animationsDisabled)  }
-        set { options.formUnion(.animationsDisabled) }
+        set { options.setValue(newValue, for: .animationsDisabled) }
     }
     
     package var needsStableDisplayListIDs: Bool {
@@ -151,15 +144,15 @@ public struct _GraphInputs {
     }
     
     package mutating func `import`(_ src: _GraphInputs) {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package mutating func merge(_ src: _GraphInputs) {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package mutating func merge(_ src: _GraphInputs, ignoringPhase: Bool) {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package func mapEnvironment<T>(_ keyPath: KeyPath<EnvironmentValues, T>) -> Attribute<T> {
@@ -168,11 +161,11 @@ public struct _GraphInputs {
     
     package mutating func copyCaches() {
         // Blocked by cachedEnvironment
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     package mutating func resetCaches() {
         // Blocked cachedEnvironment
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package mutating func append<T, U>(_ newValue: U, to _: T.Type) where T: GraphInput, T.Value == Stack<U> {
@@ -197,6 +190,13 @@ public struct _GraphInputs {
     package struct Phase: Equatable {
         var value: UInt32
         
+        @inline(__always)
+        static var isBeingRemovedBitCount: Int { 1 }
+        @inline(__always)
+        static var isBeingRemovedMask: UInt32 { (1 << isBeingRemovedBitCount) - 1}
+        @inline(__always)
+        static var resetSeedMask: UInt32 { ~isBeingRemovedMask }
+        
         @inlinable
         package init(value: UInt32) {
             self.value = value
@@ -209,19 +209,17 @@ public struct _GraphInputs {
         
         @inlinable
         package var resetSeed: UInt32 {
-            get { value >> 1 }
-            set { value = (newValue << 1) | (value & 1) }
+            get { value >> Self.isBeingRemovedBitCount }
+            set { value = (newValue << Self.isBeingRemovedBitCount) | (value & Self.isBeingRemovedMask) }
         }
 
         package var isBeingRemoved: Bool {
-            get { value & 1 != 0 }
-            set { value = (newValue ? 1 : 0) | (value & 0xFFFF_FFFE) }
+            get { (value & Self.isBeingRemovedMask) != 0 }
+            set { value = (newValue ? 1 : 0) | (value & Self.resetSeedMask) }
         }
 
         @inlinable
-        package var isInserted: Bool {
-            value & 1 == 0
-        }
+        package var isInserted: Bool { !isBeingRemoved }
 
         @inlinable
         package mutating func merge(_ other: _GraphInputs.Phase) {
@@ -295,35 +293,31 @@ extension _GraphInputs {
     }
 }
 
-// FIXME: TO BE REMOVED
+private struct MergedEnvironment: Rule, AsyncAttribute {
+    @WeakAttribute private var lhs: EnvironmentValues?
+    @Attribute private var rhs: EnvironmentValues
+    
+    var value: EnvironmentValues {
+        let rhs = rhs
+        guard let lhs else {
+            return rhs
+        }
+        preconditionFailure("TODO")
+        // rhs.plist.merge(lhs.plist)
+        // Tracker.invalidateAllValues(from: SwiftUI.PropertyList, to: SwiftUI.PropertyList)
+    }
+}
+
 extension _GraphInputs {
-
-    // MARK: - cachedEnvironment
-
     @inline(__always)
-    package func detechedEnvironmentInputs() -> Self {
-//        var newInputs = self
-//        newInputs.cachedEnvironment = MutableBox(cachedEnvironment.wrappedValue)
-//        return newInputs
-        fatalError("TO BE REMOVED")
+    mutating func detachEnvironmentInputs() {
+        cachedEnvironment = MutableBox(cachedEnvironment.wrappedValue)
     }
 
-    // MARK: - changedDebugProperties
-
     @inline(__always)
-    package func withEmptyChangedDebugPropertiesInputs<R>(_ body: (_GraphInputs) -> R) -> R {
-//        var inputs = self
-//        inputs.changedDebugProperties = []
-//        return body(inputs)
-        fatalError("TO BE REMOVED")
-    }
-
-    // MARK: - options
-
-    @inline(__always)
-    package var enableLayout: Bool {
-        false
-//        get { options.contains(.enableLayout) }
-        // TODO: setter
+    func detachedEnvironmentInputs() -> Self {
+        var newInputs = self
+        newInputs.detachEnvironmentInputs()
+        return newInputs
     }
 }

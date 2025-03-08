@@ -1,13 +1,13 @@
 //
 //  DynamicProperty.swift
-//  OpenSwiftUI
+//  OpenSwiftUICore
 //
 //  Audited for iOS 18.0
 //  Status: Complete
-//  ID: 49D2A32E637CD497C6DE29B8E060A506 (RELEASE_2021)
-//  ID: A4C1D658B3717A3062FEFC91A812D6EB (RELEASE_2024)
+//  ID: 49D2A32E637CD497C6DE29B8E060A506 (SwiftUI)
+//  ID: A4C1D658B3717A3062FEFC91A812D6EB (SwiftUICore)
 
-import OpenGraphShims
+package import OpenGraphShims
 
 // MARK: - DynamicProperty
 
@@ -166,18 +166,18 @@ package struct DynamicPropertyCache {
             return fields
         }
         let fields: Fields
-        let typeID = OGTypeID(type)
+        let typeID = Metadata(type)
         switch typeID.kind {
         case .enum, .optional:
             var taggedFields: [TaggedFields] = []
             _ = typeID.forEachField(options: [._2, ._4]) { name, offset, fieldType in
                 var fields: [Field] = []
-                let tupleType = OGTupleType(fieldType)
+                let tupleType = TupleType(fieldType)
                 for index in tupleType.indices {
                     guard let dynamicPropertyType = tupleType.type(at: index) as? DynamicProperty.Type else {
                         break
                     }
-                    let offset = tupleType.offset(at: index)
+                    let offset = tupleType.elementOffset(at: index)
                     let field = Field(type: dynamicPropertyType, offset: offset, name: name)
                     fields.append(field)
                 }
@@ -210,7 +210,11 @@ package struct DynamicPropertyCache {
     }
 }
 
-// TO BE AUDITED
+package protocol BodyAccessor<Container, Body> {
+    associatedtype Container
+    associatedtype Body
+    func updateBody(of container: Container, changed: Bool)
+}
 
 extension BodyAccessor {
     package func makeBody(
@@ -218,9 +222,8 @@ extension BodyAccessor {
         inputs: inout _GraphInputs,
         fields: DynamicPropertyCache.Fields
     ) -> (_GraphValue<Body>, _DynamicPropertyBuffer?) {
-        #if canImport(Darwin)
         guard Body.self != Never.self else {
-            fatalError("\(Body.self) may not have Body == Never")
+            preconditionFailure("\(Body.self) may not have Body == Never")
         }
         return withUnsafeMutablePointer(to: &inputs) { inputsPointer in
             func project<Flags: RuleThreadFlags>(flags _: Flags.Type) -> (_GraphValue<Body>, _DynamicPropertyBuffer?) {
@@ -253,11 +256,29 @@ extension BodyAccessor {
                 return project(flags: MainThreadFlags.self)
             }
         }
-        #else
-        fatalError("See #39")
-        #endif
+    }
+
+    @inline(__always)
+    package func setBody(_ body: () -> Body) {
+        let value = traceRuleBody(Container.self) {
+            OGGraph.withoutUpdate(body)
+        }
+        withUnsafePointer(to: value) { value in
+            OGGraph.setOutputValue(value)
+        }
     }
 }
+
+// MARK: - BodyAccessorRule
+
+package protocol BodyAccessorRule {
+    static var container: Any.Type { get }
+    static func value<T>(as: T.Type, attribute: AnyAttribute) -> T?
+    static func buffer<T>(as: T.Type, attribute: AnyAttribute) -> _DynamicPropertyBuffer?
+    static func metaProperties<T>(as: T.Type, attribute: AnyAttribute) -> [(String, AnyAttribute)]
+}
+
+// TO BE AUDITED
 
 // MARK: - RuleThreadFlags
 
@@ -272,8 +293,6 @@ private struct AsyncThreadFlags: RuleThreadFlags {
 private struct MainThreadFlags: RuleThreadFlags {
     static var value: OGAttributeTypeFlags { .mainThread }
 }
-
-#if canImport(Darwin)
 
 // MARK: - StaticBody
 
@@ -404,5 +423,3 @@ extension DynamicBody: BodyAccessorRule {
 extension DynamicBody: CustomStringConvertible {
     var description: String { "\(Accessor.Body.self)" }
 }
-
-#endif

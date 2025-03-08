@@ -1,9 +1,12 @@
 //
 //  View.swift
-//  OpenSwiftUI
+//  OpenSwiftUICore
 //
-//  Audited for iOS 15.5
+//  Audited for iOS 18.0
 //  Status: WIP
+//  ID: 1ABF77B82C037C602A176AE349787FED (SwiftUICore)
+
+import OpenSwiftUI_SPI
 
 /// A type that represents part of your app's user interface and provides
 /// modifiers that you use to configure views.
@@ -42,18 +45,26 @@
 /// You can also collect groups of default modifiers into new,
 /// custom view modifiers for easy reuse.
 @_typeEraser(AnyView)
+@preconcurrency
+@MainActor
 public protocol View {
+    /// Instantiates the view using `view` as its source value, and
+    /// `inputs` as its input values. Returns the view's output values.
+    /// This should never be called directly, instead use the
+    /// makeDebuggableView() shim function.
+    nonisolated static func _makeView(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs
+    
+    nonisolated static func _makeViewList(view: _GraphValue<Self>, inputs: _ViewListInputs) -> _ViewListOutputs
+    
+    /// The number of views that `_makeViewList()` would produce, or
+    /// nil if unknown.
+    nonisolated static func _viewListCount(inputs: _ViewListCountInputs) -> Int?
+    
     /// The type of view representing the body of this view.
     ///
     /// When you create a custom view, Swift infers this type from your
     /// implementation of the required ``View/body-swift.property`` property.
     associatedtype Body: View
-    
-    static func _makeView(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs
-    
-    static func _makeViewList(view: _GraphValue<Self>, inputs: _ViewListInputs) -> _ViewListOutputs
-    
-    static func _viewListCount(inputs: _ViewListCountInputs) -> Int?
     
     /// The content and behavior of the view.
     ///
@@ -76,33 +87,98 @@ public protocol View {
     var body: Self.Body { get }
 }
 
-extension View {
-    /// Instantiates the view using `view` as its source value, and
-    /// `inputs` as its input values. Returns the view's output values.
-    /// This should never be called directly, instead use the
-    /// makeDebuggableView() shim function.
-    public static func _makeView(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs {
-        makeView(view: view, inputs: inputs)
-    }
-    
-    public static func _makeViewList(view: _GraphValue<Self>, inputs: _ViewListInputs) -> _ViewListOutputs {
-        makeViewList(view: view, inputs: inputs)
-    }
-    
-    public static func _viewListCount(inputs: _ViewListCountInputs) -> Int? {
-        Body._viewListCount(inputs: inputs)
-    }
-}
-
-
 // MARK: - Never + View
 
 extension Never: View {
     public var body: Never { self }
+
+    nonisolated public static func _viewListCount(inputs _: _ViewListCountInputs) -> Int? {
+        nil
+    }
+}
+
+// MARK: - PrimitiveView
+
+package protocol PrimitiveView: View {}
+
+extension PrimitiveView {
+    public var body: Never {
+        bodyError()
+    }
 }
 
 extension View {
     package func bodyError() -> Never {
-        fatalError("body() should not be called on \(Self.self)")
+        preconditionFailure("body() should not be called on \(Self.self).")
+    }
+}
+
+// MARK: - UnaryView
+
+package protocol UnaryView: View {}
+
+extension UnaryView {
+    nonisolated public static func _makeViewList(view: _GraphValue<Self>, inputs: _ViewListInputs) -> _ViewListOutputs {
+        _ViewListOutputs.unaryViewList(view: view, inputs: inputs)
+    }
+    
+    nonisolated public static func _viewListCount(inputs: _ViewListCountInputs) -> Int? {
+        1
+    }
+}
+
+// MARK: - MultiView
+
+package protocol MultiView: View {}
+
+extension MultiView {
+    nonisolated public static func _makeView(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs {
+        makeImplicitRoot(view: view, inputs: inputs)
+    }
+    
+    nonisolated public static func _viewListCount(inputs: _ViewListCountInputs) -> Int? {
+        nil
+    }
+}
+
+// TODO: _UnaryViewAdaptor
+
+// MARK: - ViewVisitor
+
+package protocol ViewVisitor {
+    mutating func visit<V>(_ view: V) where V: View
+}
+
+// MARK: - ViewTypeVisitor
+
+package protocol ViewTypeVisitor {
+    mutating func visit<V>(type: V.Type) where V: View
+}
+
+// MARK: - ViewDescriptor
+
+package struct ViewDescriptor: TupleDescriptor, ConditionalProtocolDescriptor {
+    package static var typeCache: [ObjectIdentifier: TupleTypeDescription<ViewDescriptor>] = [:]
+
+    package static var descriptor: UnsafeRawPointer {
+        _OpenSwiftUI_viewProtocolDescriptor()
+    }
+
+    private static var conditionalCache: [ObjectIdentifier: ConditionalTypeDescriptor<ViewDescriptor>] = [:]
+
+    package static func fetchConditionalType(key: ObjectIdentifier) -> ConditionalTypeDescriptor<ViewDescriptor>? {
+        conditionalCache[key]
+    }
+
+    package static func insertConditionalType(key: ObjectIdentifier, value: ConditionalTypeDescriptor<ViewDescriptor>) {
+        conditionalCache[key] = value
+    }
+}
+
+// MARK: - TypeConformance + ViewDescriptor
+
+extension TypeConformance where P == ViewDescriptor {
+    package func visitType<V>(visitor: UnsafeMutablePointer<V>) where V: ViewTypeVisitor {
+        visitor.pointee.visit(type: unsafeBitCast(self, to: (any View.Type).self))
     }
 }

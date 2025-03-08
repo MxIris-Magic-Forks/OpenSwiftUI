@@ -4,8 +4,8 @@
 //
 //  Audited for iOS 18.0
 //  Status: Blocked by transactions
-//  ID: 30C09FF16BC95EC5173809B57186CAC3 (RELEASE_2021)
-//  ID: F9F204BD2F8DB167A76F17F3FB1B3335 (RELEASE_2024)
+//  ID: 30C09FF16BC95EC5173809B57186CAC3 (SwiftUI)
+//  ID: F9F204BD2F8DB167A76F17F3FB1B3335 (SwiftUICore)
 
 import OpenSwiftUI_SPI
 package import OpenGraphShims
@@ -24,8 +24,15 @@ public protocol GraphDelegate: AnyObject {
 @_spi(ForOpenSwiftUIOnly)
 extension GraphDelegate {
     public func beginTransaction() {
-        onMainThread {
-            // TODO: RunLoop.addObserver
+        onMainThread { [weak self] in
+            RunLoop.addObserver {
+                Update.ensure {
+                    guard let self else { return }
+                    self.updateGraph { host in
+                        host.flushTransactions()
+                    }
+                }
+            }
         }
     }
 }
@@ -83,15 +90,15 @@ open class GraphHost: CustomReflectable {
             self.graph = graph
             self.globalSubgraph = globalSubgraph
             self.rootSubgraph = rootSubgrph
-            isRemoved = false
-            isHiddenForReuse = false
-            _time = time
-            _environment = environment
-            _phase = phase
-            _hostPreferenceKeys = hostPreferenceKeys
-            _transaction = transaction
-            _updateSeed = updateSeed
-            _transactionSeed = transactionSeed
+            self.isRemoved = false
+            self.isHiddenForReuse = false
+            self._time = time
+            self._environment = environment
+            self._phase = phase
+            self._hostPreferenceKeys = hostPreferenceKeys
+            self._transaction = transaction
+            self._updateSeed = updateSeed
+            self._transactionSeed = transactionSeed
             self.inputs = inputs
         }
         
@@ -112,9 +119,7 @@ open class GraphHost: CustomReflectable {
     package final var graphInputs: _GraphInputs { data.inputs }
     package final var globalSubgraph: Subgraph { data.globalSubgraph }
     package final var rootSubgraph: Subgraph { data.rootSubgraph }
-    #if canImport(Darwin)
     private var constants: [ConstantKey: AnyAttribute] = [:]
-    #endif
     private(set) package final var isInstantiated: Bool = false
     package final var hostPreferenceValues: WeakAttribute<PreferenceList> = WeakAttribute()
     package final var lastHostPreferencesSeed: VersionSeed = .invalid
@@ -143,17 +148,13 @@ open class GraphHost: CustomReflectable {
     }
     
     package static var currentHost: GraphHost {
-        #if canImport(Darwin)
         if let currentAttribute = AnyAttribute.current {
             currentAttribute.graph.graphHost()
         } else if let currentSubgraph = Subgraph.current {
             currentSubgraph.graph.graphHost()
         } else {
-            fatalError("no current graph host")
+            preconditionFailure("no current graph host")
         }
-        #else
-        fatalError("Compiler issue on Linux. See #39")
-        #endif
     }
     
     package init(data: Data) {
@@ -166,12 +167,10 @@ open class GraphHost: CustomReflectable {
             else { return }
             graphDelegate.updateGraph { _ in }
         }
-        #if canImport(Darwin)
         Graph.setInvalidationCallback(graph) { [weak self] attribute in
             guard let self else { return }
             graphInvalidation(from: attribute)
         }
-        #endif
         graph.context = UnsafeRawPointer(Unmanaged.passUnretained(self).toOpaque())
     }
     
@@ -185,14 +184,7 @@ open class GraphHost: CustomReflectable {
             globalSubgraph.willInvalidate(isInserted: false)
             isInstantiated = false
         }
-        if let graph = data.graph {
-            Update.begin()
-            globalSubgraph.invalidate()
-            graph.context = nil
-            graph.invalidate()
-            data.graph = nil
-            Update.end()
-        }
+        data.invalidate()
     }
     
     package static var isUpdating: Bool {
@@ -200,14 +192,13 @@ open class GraphHost: CustomReflectable {
     }
     
     package final var isUpdating: Bool {
-        guard let graph = data.graph else { return false }
+        guard isValid else { return false }
         return graph.counter(for: ._6) != 0
     }
     
     package final func setNeedsUpdate(mayDeferUpdate: Bool) {
         self.mayDeferUpdate = self.mayDeferUpdate && mayDeferUpdate
-        // Blocked by OGGraphSetNeedsUpdate
-        // data.graph?.setNeedsUpdate()
+        data.graph?.setNeedsUpdate()
     }
 
     // MARK: - GraphHost.ConstantID
@@ -219,10 +210,10 @@ open class GraphHost: CustomReflectable {
         case defaultValue3D
         case failedValue
         case placeholder
+        case preferenceKeyDefault
     }
     
     package final func intern<T>(_ value: T, for type: Any.Type = T.self, id: ConstantID) -> Attribute<T> {
-        #if canImport(Darwin)
         if let attribute = constants[ConstantKey(type: type , id: id)] {
             return Attribute(identifier: attribute)
         } else {
@@ -230,9 +221,6 @@ open class GraphHost: CustomReflectable {
             constants[ConstantKey(type: type, id: id)] = result.identifier
             return result
         }
-        #else
-        fatalError("See #39")
-        #endif
     }
     
     public final var customMirror: Mirror { Mirror(self, children: []) }
@@ -252,7 +240,6 @@ extension GraphHost: Sendable {}
 @_spi(ForOpenSwiftUIOnly)
 extension GraphHost {
     package final func graphInvalidation(from src: AnyAttribute?) {
-        #if canImport(Darwin)
         guard let src else {
             graphDelegate?.graphDidChange()
             return
@@ -265,7 +252,6 @@ extension GraphHost {
             return
         }
         emptyTransaction(transaction)
-        #endif
     }
     
     package final func instantiate() {
@@ -281,7 +267,7 @@ extension GraphHost {
         guard isInstantiated else {
             return
         }
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package final func uninstantiate() {
@@ -328,7 +314,38 @@ extension GraphHost {
     }
     
     package final func updateRemovedState() {
-        fatalError("TODO")
+        let isRemoved: Bool
+        let removedState: RemovedState
+        
+        if self.removedState.isEmpty {
+            if let parentHost {
+                let state = parentHost.removedState
+                isRemoved = state.contains(.unattached)
+                removedState = state
+            } else {
+                isRemoved = false
+                removedState = []
+            }
+        } else {
+            isRemoved = true
+            removedState = self.removedState
+        }
+        let isHiddenForReuse = removedState.contains(.hiddenForReuse)
+        
+        if isRemoved != data.isRemoved {
+            if isRemoved {
+                rootSubgraph.willRemove()
+                globalSubgraph.removeChild(rootSubgraph)
+            } else {
+                globalSubgraph.addChild(rootSubgraph)
+                rootSubgraph.didReinsert()
+            }
+            data.isRemoved = isRemoved
+        }
+        if isHiddenForReuse != data.isHiddenForReuse {
+            data.isHiddenForReuse = isHiddenForReuse
+            isHiddenForReuseDidChange()
+        }
     }
     
     // MARK: - GraphHost + Transaction
@@ -337,10 +354,43 @@ extension GraphHost {
         _ transaction: Transaction = .init(),
         id transactionID: Transaction.ID = Transaction.id,
         mutation: T,
-        style: _GraphMutation_Style = .deferred,
+        style: GraphMutation.Style = .deferred,
         mayDeferUpdate: Bool = true
     ) where T: GraphMutation {
-        fatalError("TODO")
+        Update.locked {
+            guard isValid else {
+                return
+            }
+            let shouldDeferUpdate = switch style {
+                case .immediate: isUpdating
+                case .deferred: true
+            }
+            self.mayDeferUpdate = self.mayDeferUpdate || mayDeferUpdate
+            if hasPendingTransactions {
+                let count = pendingTransactions.count
+                if pendingTransactions[count-1].transactionID == transactionID,
+                   pendingTransactions[count-1].transaction.mayConcatenate(with: transaction) {
+                    pendingTransactions[count-1].append(mutation)
+                    if !shouldDeferUpdate {
+                        let lastTransaction = pendingTransactions.removeLast()
+                        flushTransactions()
+                        pendingTransactions.append(lastTransaction)
+                    }
+                    return
+                }
+                if !shouldDeferUpdate {
+                    flushTransactions()
+                }
+            } else {
+                graphDelegate?.beginTransaction()
+            }
+            pendingTransactions.append(
+                AsyncTransaction(
+                    transaction: transaction,
+                    transactionID: transactionID,
+                    mutations: [mutation])
+            )
+        }
     }
     
     package final func asyncTransaction(
@@ -348,20 +398,27 @@ extension GraphHost {
         id transactionID: Transaction.ID = Transaction.id,
         _ body: @escaping () -> Void
     ) {
-        asyncTransaction(transaction, id: transactionID, mutation: CustomGraphMutation(body))
+        asyncTransaction(
+            transaction,
+            id: transactionID,
+            mutation: CustomGraphMutation(body)
+        )
     }
     
     package final func asyncTransaction<T>(
         _ transaction: Transaction = .init(),
         id transactionID: Transaction.ID = Transaction.id,
         invalidating attribute: WeakAttribute<T>,
-        style: _GraphMutation_Style = .deferred,
+        style: GraphMutation.Style = .deferred,
         mayDeferUpdate: Bool = true
     ) {
-        #if canImport(Darwin)
-        // Blocked by WeakAttribute.base API in OpenGraph
-        // asyncTransaction(transaction, id: transactionID, mutation: InvalidatingGraphMutation(attribute: attribute.base), style: style, mayDeferUpdate: mayDeferUpdate)
-        #endif
+        asyncTransaction(
+            transaction,
+            id: transactionID,
+            mutation: InvalidatingGraphMutation(attribute: .init(attribute)),
+            style: style,
+            mayDeferUpdate: mayDeferUpdate
+        )
     }
     
     package final func emptyTransaction(_ transaction: Transaction = .init()) {
@@ -381,40 +438,70 @@ extension GraphHost {
         host.continuations.append(body)
     }
     
-    package final var hasPendingTransactions: Bool { !pendingTransactions.isEmpty }
+    package final var hasPendingTransactions: Bool {
+        !pendingTransactions.isEmpty
+    }
 
     package final func flushTransactions() {
         guard isValid, hasPendingTransactions else {
             return
         }
-        let transactions = pendingTransactions
+        let asyncTransactions = pendingTransactions
         pendingTransactions = []
-        for _ in transactions {
-            instantiateIfNeeded()
-            fatalError("TODO")
+        for asyncTransaction in asyncTransactions {
+            let transaction = asyncTransaction.transaction
+            let mutations = asyncTransaction.mutations
+            runTransaction(transaction) {
+                withTransaction(transaction) {
+                    for mutation in mutations {
+                        mutation.apply()
+                    }
+                }
+            }
         }
         graphDelegate?.graphDidChange()
         mayDeferUpdate = true
     }
 
     package final func runTransaction(_ transaction: Transaction? = nil, do body: () -> Void) {
-        fatalError("TODO")
+        instantiateIfNeeded()
+        if let transaction, !transaction.isEmpty {
+            data.transaction = transaction
+        }
+        startTransactionUpdate()
+        body()
+        finishTransactionUpdate(in: globalSubgraph)
+        if let transaction, !transaction.isEmpty {
+            data.transaction = .init()
+        }
     }
     
     package final func runTransaction() {
-        fatalError("TODO")
+        runTransaction(nil) {}
     }
     
     package final var needsTransaction: Bool {
-        fatalError("TODO")
+        globalSubgraph.isDirty(1)
     }
     
     package final func startTransactionUpdate() {
-        fatalError("TODO")
+        inTransaction = true
+        data.transactionSeed += 1
     }
 
     package final func finishTransactionUpdate(in subgraph: Subgraph, postUpdate: (_ again: Bool) -> Void = { _ in }) {
-        fatalError("TODO")
+        var count = 0
+        repeat {
+            let currentContinuations = continuations
+            continuations = []
+            for currentContinuation in currentContinuations {
+                currentContinuation()
+            }
+            count &+= 1
+            subgraph.update(flags: .active)
+            postUpdate(!continuations.isEmpty)
+        } while count != 8 && !continuations.isEmpty
+        inTransaction = false
     }
 }
 
@@ -423,7 +510,7 @@ extension GraphHost {
     private static var pendingGlobalTransactions: [GlobalTransaction] = []
 
     private static func flushGlobalTransactions() {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package static func globalTransaction<T>(
@@ -432,7 +519,7 @@ extension GraphHost {
         mutation: T,
         hostProvider: any TransactionHostProvider
     ) where T: GraphMutation {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
 }
 
@@ -494,14 +581,20 @@ private struct ConstantKey: Hashable {
 
 package protocol GraphMutation {
     typealias Style = _GraphMutation_Style
+
     func apply()
+
     mutating func combine<T>(with other: T) -> Bool where T: GraphMutation
 }
+
+// MARK: GraphMutation.Style
 
 package enum _GraphMutation_Style {
     case immediate
     case deferred
 }
+
+// MARK: - CustomGraphMutation
 
 package struct CustomGraphMutation: GraphMutation {
     let body: () -> Void
@@ -509,10 +602,11 @@ package struct CustomGraphMutation: GraphMutation {
         self.body = body
     }
     package func apply() { body() }
-    package func combine<T>(with other: T) -> Bool where T : GraphMutation { false }
+    package func combine<T>(with other: T) -> Bool where T: GraphMutation { false }
 }
 
-#if canImport(Darwin)
+// MARK: - InvalidatingGraphMutation
+
 struct InvalidatingGraphMutation: GraphMutation {
     let attribute: AnyWeakAttribute
     
@@ -527,7 +621,8 @@ struct InvalidatingGraphMutation: GraphMutation {
         return mutation.attribute == attribute
     }
 }
-#endif
+
+// MARK: - EmptyGraphMutation
 
 private struct EmptyGraphMutation: GraphMutation {
     package init() {}
@@ -537,26 +632,24 @@ private struct EmptyGraphMutation: GraphMutation {
     }
 }
 
-// MARK: - TransactionHostProvider [TODO]
+// MARK: - TransactionHostProvider
 
 package protocol TransactionHostProvider: AnyObject {
     var mutationHost: GraphHost? { get }
 }
 
-// MARK: - AsyncTransaction [TODO]
+// MARK: - AsyncTransaction
 
-private final class AsyncTransaction {
+private struct AsyncTransaction {
     let transaction: Transaction
+
+    let transactionID: Transaction.ID
+
     var mutations: [GraphMutation] = []
-    
-    init(_ transaction: Transaction) {
-        self.transaction = transaction
-    }
-    
-    func append<Mutation: GraphMutation>(_ mutation: Mutation) {
-        // ``GraphMutation/combine`` is mutating function
-        // So we use ``Array.subscript/_modify`` instead of ``Array.last/getter`` to mutate inline
-        if !mutations.isEmpty, mutations[mutations.count - 1].combine(with: mutation) {
+
+    mutating func append<T>(_ mutation: T) where T: GraphMutation {
+        // NOTE: use ``Array.subscript/_modify`` instead of ``Array.last/getter`` to mutate inline
+        guard mutations.isEmpty || !mutations[mutations.count - 1].combine(with: mutation) else {
             return
         }
         mutations.append(mutation)
@@ -581,7 +674,7 @@ private final class GlobalTransaction {
     }
 }
 
-// MARK: - Graph + Extension
+// MARK: - Graph + GraphHost
 
 extension Graph {
     package func graphHost() -> GraphHost {
@@ -595,5 +688,5 @@ private var blockedGraphHosts: [Unmanaged<GraphHost>] = []
 private let waitingForPreviewThunks = EnvironmentHelper.bool(for: "XCODE_RUNNING_FOR_PREVIEWS")
 
 public func __previewThunksHaveFinishedLoading() {
-    fatalError("TODO")
+    preconditionFailure("TODO")
 }

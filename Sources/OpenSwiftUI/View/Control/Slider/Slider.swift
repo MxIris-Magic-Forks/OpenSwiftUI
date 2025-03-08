@@ -650,7 +650,7 @@ private struct Clamping<Value>: Projection where Value: BinaryFloatingPoint {
     }
 
     func set(base: inout Value, newValue: Double) {
-        base = clamp(Value(newValue), min: 0, max: 1)
+        base = Value(newValue).clamp(min: 0, max: 1)
     }
 }
 
@@ -669,7 +669,7 @@ private struct Normalizing<Value>: Projection where Value: Strideable, Value: Ha
         if let stride {
             let result = (min.distance(to: max) / stride).rounded(.down)
             guard result > 0 else {
-                fatalError("max stride must be positive")
+                preconditionFailure("max stride must be positive")
             }
             length = stride * result
             maxStrides = result

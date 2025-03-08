@@ -4,7 +4,6 @@
 //
 //  Audited for iOS 18.0
 //  Status: Complete
-//  ID: 3D8838A231BB2CC7FC00E7880D8B2FC4
 
 // MARK: - PreferenceKey
 
@@ -37,12 +36,19 @@ public protocol PreferenceKey {
     ///   - nextValue: A closure that returns the next value in the sequence.
     static func reduce(value: inout Value, nextValue: () -> Value)
 
+    /// If true `reduce()` will also see preference values for views
+    /// that have active removal transitions. The default
+    /// implementation returns false.
     static var _includesRemovedValues: Bool { get }
 
+    /// If true the preference may be read via the renderer host API.
+    /// Defaults to false. If true `_includesRemovedValues` should be
+    /// false.
     static var _isReadableByHost: Bool { get }
 }
 
 extension PreferenceKey where Value: ExpressibleByNilLiteral {
+    /// Let nil-expressible values default-initialize to nil.
     public static var defaultValue: Value { Value(nilLiteral: ()) }
 }
 

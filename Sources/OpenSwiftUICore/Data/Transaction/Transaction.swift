@@ -6,7 +6,7 @@
 //  Status: WIP
 //  ID: B2543BCA257433E04979186A1DC2B6BC
 
-import OpenGraphShims
+package import OpenGraphShims
 import OpenSwiftUI_SPI
 
 /// The context of the current state-processing update.
@@ -74,7 +74,8 @@ public struct Transaction {
     package var isEmpty: Bool { plist.isEmpty }
     
     package func mayConcatenate(with other: Transaction) -> Bool {
-        fatalError("TODO")
+        // preconditionFailure("TODO")
+        false
     }
     
     @_transparent
@@ -91,19 +92,19 @@ public struct Transaction {
     }
     
     package static var current: Transaction {
-        if let data = _threadTransactionData() as? AnyObject {
-            Transaction(plist: PropertyList(data: data))
+        if let data = _threadTransactionData() {
+            Transaction(plist: PropertyList(data: data as AnyObject))
         } else {
             Transaction()
         }
     }
     
     package var current: Transaction {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package func forEach<K>(keyType: K.Type, _ body: (K.Value, inout Bool) -> Void) where K: TransactionKey {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     // FIXME: TO BE REMOVED
@@ -131,11 +132,19 @@ public func withTransaction<Result>(
     _ transaction: Transaction,
     _ body: () throws -> Result
 ) rethrows -> Result {
-    // TO BE AUDITED in RELEASE_2024
     try withExtendedLifetime(transaction) {
         let oldData = _threadTransactionData()
         defer { _setThreadTransactionData(oldData) }
-        let data = transaction.plist.elements.map { Unmanaged.passUnretained($0).toOpaque() }        
+        // FIXME after Transaction update
+        let result: Transaction
+        if isDeployedOnOrAfter(Semantics.v5) {
+            var transaction = Transaction.current
+            transaction.plist.merge(transaction.plist)
+            result = transaction
+        } else {
+            result = transaction
+        }
+        let data = result.plist.elements.map { Unmanaged.passUnretained($0).toOpaque() }
         _setThreadTransactionData(data)
         return try body()
     }
@@ -247,11 +256,31 @@ extension Transaction {
     }
 }
 
-// MARK: - TransactionID [TODO]
+// MARK: - TransactionID
 
-package struct TransactionID/*: Comparable, Hashable */{
+package struct TransactionID: Comparable, Hashable {
     package var id: Int
-    package init(id: Int) {
-        self.id = id
+
+    @inlinable
+    package init() { id = .zero }
+
+    @inlinable
+    package init(graph: Graph) {
+        id = Int(graph.counter(for: ._1))
+    }
+
+    @inlinable
+    package init(context: AnyRuleContext) {
+        self.init(graph: context.attribute.graph)
+    }
+
+    @inlinable
+    package init<Value>(context: RuleContext<Value>) {
+        self.init(graph: context.attribute.graph)
+    }
+
+    @inlinable
+    package static func < (lhs: TransactionID, rhs: TransactionID) -> Bool {
+        lhs.id < rhs.id
     }
 }

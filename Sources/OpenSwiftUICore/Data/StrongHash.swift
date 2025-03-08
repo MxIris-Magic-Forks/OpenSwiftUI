@@ -3,7 +3,7 @@
 //  OpenSwiftUICore
 //
 //  Audited for iOS 18.0
-//  Status: Blocked by OGTypeGetSignature and RBUUID
+//  Status: Blocked by OGTypeGetSignature
 
 #if OPENSWIFTUI_SWIFT_CRYPTO
 import Crypto
@@ -12,6 +12,7 @@ import CommonCrypto
 #endif
 
 import Foundation
+import OpenBoxShims
 
 package protocol StronglyHashable {
   func hash(into hasher: inout StrongHasher)
@@ -150,7 +151,7 @@ package struct StrongHasher {
     package mutating func combineType(_ type: any Any.Type) {
 //        let signature = OGTypeGetSignature
 //        CC_SHA1_Update(&state, signature, 20)
-        fatalError("Blocked by latest OGTypeGetSignature")
+        preconditionFailure("Blocked by latest OGTypeGetSignature")
     }
 }
 
@@ -212,9 +213,15 @@ extension Float: StronglyHashableByBitPattern {}
 extension Double: StronglyHashableByBitPattern {}
 extension UUID: StronglyHashableByBitPattern {}
 
-//extension RenderBox.RBUUID {
-//  package init(hash: StrongHash)
-//}
+extension OBUUID {
+    package init(hash: StrongHash) {
+        self.init(
+            UInt64(hash.words.0) | (UInt64(hash.words.1) << 32),
+            UInt64(hash.words.2) | (UInt64(hash.words.3) << 32),
+            5
+        )
+    }
+}
 
 extension StrongHash: ProtobufMessage {
     package func encode(to encoder: inout ProtobufEncoder) {

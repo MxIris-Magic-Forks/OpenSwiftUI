@@ -42,7 +42,7 @@ extension _VariadicView_ViewRoot {
         inputs: _ViewInputs,
         body: (_Graph, _ViewInputs) -> _ViewListOutputs
     ) -> _ViewOutputs {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     public static func _makeViewList(
@@ -50,7 +50,7 @@ extension _VariadicView_ViewRoot {
         inputs: _ViewListInputs,
         body: @escaping (_Graph, _ViewListInputs) -> _ViewListOutputs
     ) -> _ViewListOutputs {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     public static func _viewListCount(inputs: _ViewListCountInputs) -> Int? {
@@ -73,11 +73,31 @@ extension _ViewInputs {
     }
 }
 
-extension View {
-    static func makeImplicitRoot(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs {
+package struct ViewListOptionsInput: ViewInput {
+    package static let defaultValue: _ViewListInputs.Options = []
+}
+
+extension _ViewOutputs {
+    package static func multiView(inputs: _ViewInputs, body: @escaping (_Graph, _ViewInputs) -> _ViewListOutputs) -> _ViewOutputs {
         // TODO
         return .init()
     }
 }
 
-// TODO: ViewModifier
+extension View {
+    nonisolated static func makeImplicitRoot(view: _GraphValue<Self>, inputs: _ViewInputs) -> _ViewOutputs {
+        // TODO
+        return .init()
+    }
+}
+
+extension ViewModifier {
+    nonisolated static func makeImplicitRoot(
+        modifier: _GraphValue<Self>,
+        inputs: _ViewInputs,
+        body: @escaping (_Graph, _ViewListInputs) -> _ViewListOutputs
+    ) -> _ViewOutputs {
+        // TODO
+        return .init()
+    }
+}

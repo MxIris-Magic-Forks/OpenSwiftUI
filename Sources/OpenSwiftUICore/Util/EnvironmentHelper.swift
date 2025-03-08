@@ -17,10 +17,10 @@ import WASILibc
 
 package enum EnvironmentHelper {
     @_transparent
-    package static func int32(for key: String) -> Int32 {
+    package static func int32(for key: String) -> Int32? {
         key.withCString { string in
             guard let env = getenv(string) else {
-                return 0
+                return nil
             }
             return atoi(env)
         }
@@ -28,6 +28,9 @@ package enum EnvironmentHelper {
     
     @_transparent
     package static func bool(for key: String) -> Bool {
-        int32(for: key) != 0
+        guard let value = int32(for: key) else {
+            return false
+        }
+        return value != 0
     }
 }

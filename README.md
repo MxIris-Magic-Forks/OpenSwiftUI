@@ -44,6 +44,10 @@ See Example folder and try it with ExampleApp
 ./Scripts/openswiftui_swiftinterface
 ```
 
+> [!NOTE]
+> You can use tools like [EnvPane](https://github.com/hschmidt/EnvPane/releases/) or [MenuHelper](https://github.com/Kyle-Ye/MenuHelper/releases)
+> on macOS platform to manage the environment variable more easily.
+
 ## Supported platforms
 
 The table below describes the current level of support that `OpenSwiftUI` has
@@ -74,6 +78,15 @@ for various platforms:
 >
 > So most of the core feature is only available on Apple platform built with
 > AttributeGraph varient.
+
+## Products
+
+- OpenSwiftUI
+    - A SwiftUI source compatibility framework.
+- OpenSwiftUIExtension
+    - Extensive API collections for OpenSwiftUI & SwiftUI.
+- OpenSwiftUIBridge
+    - A bridge layer for migrating other DSL framework to OpenSwiftUI incrementally and mixing them freely.
 
 ## License
 

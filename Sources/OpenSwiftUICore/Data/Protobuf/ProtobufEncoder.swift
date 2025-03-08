@@ -4,7 +4,7 @@
 //
 //  Audited for iOS 18.0
 //  Status: Complete
-//  ID: C7B3AAD101AF9EA76FC322BD6EF713E6
+//  ID: C7B3AAD101AF9EA76FC322BD6EF713E6 (SwiftUICore)
 
 package import Foundation
 
@@ -415,7 +415,7 @@ extension ProtobufEncoder {
     /// - Returns: The encoded binary plist data.
     func binaryPlistData<T>(for value: T) throws -> Data where T: Encodable {
         #if os(WASI)
-        fatalError("PropertyListEncoder is not avaiable on WASI")
+        preconditionFailure("PropertyListEncoder is not avaiable on WASI")
         #else
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary

@@ -4,7 +4,8 @@
 //
 //  Audited for iOS 15.5
 //  Status: Complete
-//  ID: 68550FF604D39F05971FE35A26EE75B0
+//  ID: 68550FF604D39F05971FE35A26EE75B0 (SwiftUI)
+//  ID: F3A89CF4357225EF49A7DD673FDFEE02 (SwiftUICore)
 
 import OpenGraphShims
 
@@ -272,7 +273,7 @@ private class BoxVTableBase {
         ptr _: UnsafeMutableRawPointer,
         from _: UnsafeMutableRawPointer
     ) {
-        fatalError()
+        preconditionFailure("")
     }
     
     class func deinitialize(ptr _: UnsafeMutableRawPointer) {}

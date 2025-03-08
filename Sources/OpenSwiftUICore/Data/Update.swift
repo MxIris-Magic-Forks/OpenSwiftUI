@@ -3,9 +3,9 @@
 //  OpenSwiftUI
 //
 //  Audited for iOS 18.0
-//  Status: Blocked by Signpost
-//  ID: EA173074DA35FA471DC70643259B7E74 (RELEASE_2021)
-//  ID: 61534957AEEC2EDC447ABDC13B4D426F (RELEASE_2024)
+//  Status: Complete
+//  ID: EA173074DA35FA471DC70643259B7E74 (SwiftUI)
+//  ID: 61534957AEEC2EDC447ABDC13B4D426F (SwiftUICore)
 
 import OpenSwiftUI_SPI
 import OpenGraphShims
@@ -60,7 +60,7 @@ package enum Update {
             return
         }
         guard isOwner else {
-            fatalError("OpenSwiftUI is active without having taken its own lock - missing Update.ensure()?")
+            preconditionFailure("OpenSwiftUI is active without having taken its own lock - missing Update.ensure()?")
         }
     }
     
@@ -68,14 +68,34 @@ package enum Update {
         lock()
         depth += 1
         if depth == 1 {
-            // TODO: Signpost.renderUpdate.trace + trackHost
+            #if canImport(Darwin)
+            Signpost.viewHost.traceEvent(
+                type: .begin,
+                object: trackHost,
+                "",
+                [
+                    0,
+                    UInt(bitPattern: Unmanaged.passUnretained(trackHost).toOpaque()),
+                ]
+            )
+            #endif
         }
     }
     
     package static func end() {
         if depth == 1 {
             dispatchActions()
-            // TODO: Signpost.renderUpdate.trace + trackHost
+            #if canImport(Darwin)
+            Signpost.viewHost.traceEvent(
+                type: .end,
+                object: trackHost,
+                "",
+                [
+                    0,
+                    UInt(bitPattern: Unmanaged.passUnretained(trackHost).toOpaque()),
+                ]
+            )
+            #endif
         }
         depth -= 1
         unlock()
@@ -103,16 +123,12 @@ package enum Update {
         if Thread.isMainThread {
             body()
         } else {
-            #if canImport(Darwin)
             withoutActuallyEscaping(body) { escapableBody in
                 let context = AnyRuleContext(attribute: AnyOptionalAttribute.current.identifier)
                 MovableLock.syncMain(lock: _lock) {
                     context.update(body: escapableBody)
                 }
             }
-            #else
-            fatalError("See #39")
-            #endif
         }
         #endif
     }
@@ -152,7 +168,7 @@ package enum Update {
                         action()
                         let newDepth = depth
                         guard newDepth == oldDepth else {
-                            fatalError("Action caused unbalanced updates.")
+                            preconditionFailure("Action caused unbalanced updates.")
                         }
                     }
                 }

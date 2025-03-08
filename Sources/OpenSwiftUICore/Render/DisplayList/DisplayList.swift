@@ -89,11 +89,11 @@ package struct DisplayList: Equatable {
     }
     
     package mutating func append(_ item: Item) {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }
     
     package mutating func append(contentsOf other: DisplayList) {
-        fatalError("TODO")
+        preconditionFailure("TODO")
     }    
 }
 
@@ -214,12 +214,16 @@ extension DisplayList {
 //    }
     
     package struct Version: Comparable, Hashable {
-        package private(set) var value: Int
-
-        package init() { value = .zero }
-        package init(decodedValue value: Int) { self.value = value }
-        
         private static var lastValue: Int = .zero
+        
+        package private(set) var value: Int
+        
+        package init() { value = .zero }
+        
+        package init(decodedValue value: Int) {
+            Version.lastValue = max(Version.lastValue, value)
+            self.value = value
+        }
         
         package init(forUpdate: Void) {
             Version.lastValue &+= 1
@@ -365,16 +369,16 @@ extension DisplayList {
         }
         
         package mutating func skip(list: DisplayList) {
-            fatalError("TODO")
+            preconditionFailure("TODO")
         }
         
         package mutating func skip(item: Item) {
-            fatalError("TODO")
+            preconditionFailure("TODO")
         }
         
         package mutating func skip(effect: Effect) {
             
-            fatalError("TODO")
+            preconditionFailure("TODO")
         }
         
         package func assertItem(_ item: Item) {}
