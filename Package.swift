@@ -305,7 +305,7 @@ extension Target {
     }
 }
 
-let useLocalDeps = envEnable("OPENSWIFTUI_USE_LOCAL_DEPS")
+let useLocalDeps = envEnable("OPENSWIFTUI_USE_LOCAL_DEPS", default: true)
 
 #if os(macOS)
 let attributeGraphCondition = envEnable("OPENGRAPH_ATTRIBUTEGRAPH", default: true)
